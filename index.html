@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Miles of Solitude</title>
+  <link rel="stylesheet" href="/styles/hud.css" />
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud">
+    <div id="hud-left">
+      <div class="gauge" id="tachometer">
+        <svg viewBox="0 0 200 200">
+          <circle class="gauge-bg" cx="100" cy="100" r="85" />
+          <circle class="gauge-fill rpm-fill" cx="100" cy="100" r="85" />
+        </svg>
+        <div class="gauge-value">
+          <span id="rpm-value">0</span>
+          <span class="gauge-unit">RPM</span>
+        </div>
+      </div>
+      <div class="gauge" id="speedometer">
+        <svg viewBox="0 0 200 200">
+          <circle class="gauge-bg" cx="100" cy="100" r="85" />
+          <circle class="gauge-fill speed-fill" cx="100" cy="100" r="85" />
+        </svg>
+        <div class="gauge-value">
+          <span id="speed-value">0</span>
+          <span class="gauge-unit">KM/H</span>
+        </div>
+      </div>
+    </div>
+    <div id="hud-center">
+      <div id="gear-indicator">
+        <span id="gear-value">N</span>
+      </div>
+    </div>
+    <div id="hud-right">
+      <div id="fuel-gauge">
+        <div class="fuel-icon">&#9981;</div>
+        <div class="fuel-bar-container">
+          <div class="fuel-bar" id="fuel-bar"></div>
+        </div>
+        <span id="fuel-value">100%</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls-hint">
+    <p>WASD / Arrow Keys - Drive | SPACE - Brake | C - Camera | R - Reset</p>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

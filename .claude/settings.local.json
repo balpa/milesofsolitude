@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:rapier.rs)",
+      "WebFetch(domain:www.asawicki.info)",
+      "Bash(npm create:*)",
+      "Bash(where:*)",
+      "Bash(cmd /c \"where npm 2>nul && where node 2>nul\")",
+      "Bash(cmd /c \"echo %PATH%\")",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell.exe -NoProfile -Command \"& { $machinePath = [System.Environment]::GetEnvironmentVariable\\(''Path'',''Machine''\\); $userPath = [System.Environment]::GetEnvironmentVariable\\(''Path'',''User''\\); $env:PATH = $machinePath + '';'' + $userPath; & npm --version 2>&1; & node --version 2>&1 }\")",
+      "Bash(powershell.exe:*)"
+    ]
+  }
+}

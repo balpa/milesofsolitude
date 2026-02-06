@@ -1,0 +1,188 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  background: #000;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+#game-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* HUD Container */
+#hud {
+  position: fixed;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 30px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#hud-left {
+  display: flex;
+  gap: 15px;
+  align-items: flex-end;
+}
+
+#hud-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#hud-right {
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Gauge Styles */
+.gauge {
+  position: relative;
+  width: 130px;
+  height: 130px;
+}
+
+.gauge svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.gauge-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 8;
+  stroke-dasharray: 534;
+  stroke-dashoffset: 134;
+}
+
+.gauge-fill {
+  fill: none;
+  stroke-width: 8;
+  stroke-dasharray: 534;
+  stroke-dashoffset: 534;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.05s ease-out;
+}
+
+.rpm-fill {
+  stroke: #ff4444;
+}
+
+.speed-fill {
+  stroke: #44aaff;
+}
+
+.gauge-value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #fff;
+}
+
+.gauge-value span:first-child {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.gauge-unit {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.6;
+  letter-spacing: 1px;
+}
+
+/* Gear Indicator */
+#gear-indicator {
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px 20px;
+  margin-bottom: 10px;
+}
+
+#gear-value {
+  color: #fff;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+/* Fuel Gauge */
+#fuel-gauge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 10px 15px;
+}
+
+.fuel-icon {
+  font-size: 20px;
+  opacity: 0.8;
+}
+
+.fuel-bar-container {
+  width: 100px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.fuel-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44);
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+#fuel-value {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Controls Hint */
+#controls-hint {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 16px;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0.7;
+  transition: opacity 3s ease;
+}
+
+#controls-hint p {
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
