@@ -21,7 +21,6 @@ export class InputManager {
     });
   }
 
-  // add S key for braking then reverse. 
   getState(): InputState {
     return {
       forward: this.keys.has('KeyW') || this.keys.has('ArrowUp'),
@@ -29,6 +28,8 @@ export class InputManager {
       left: this.keys.has('KeyA') || this.keys.has('ArrowLeft'),
       right: this.keys.has('KeyD') || this.keys.has('ArrowRight'),
       brake: this.keys.has('Space'),
+      shiftUp: this.justPressed.has('KeyE') || this.justPressed.has('ShiftLeft'),
+      shiftDown: this.justPressed.has('KeyQ') || this.justPressed.has('ControlLeft'),
       cameraToggle: this.justPressed.has('KeyC'),
       reset: this.justPressed.has('KeyR'),
     };

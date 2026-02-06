@@ -23,6 +23,12 @@ export class VehicleController {
 
   private currentSteering = 0;
 
+  // Interpolation state for smooth rendering
+  private prevPosition = new THREE.Vector3();
+  private prevQuaternion = new THREE.Quaternion();
+  private currPosition = new THREE.Vector3();
+  private currQuaternion = new THREE.Quaternion();
+
   constructor(world: World, config: VehicleConfig) {
     this.world = world;
     this.config = config;
@@ -150,20 +156,20 @@ export class VehicleController {
   }
 
   fixedUpdate(input: InputState, dt: number): void {
-    // Determine throttle and direction
+    // Save previous physics state for interpolation
+    this.prevPosition.copy(this.currPosition);
+    this.prevQuaternion.copy(this.currQuaternion);
+
+    // Manual gear shifting
+    if (input.shiftUp) this.transmission.shiftUp();
+    if (input.shiftDown) this.transmission.shiftDown();
+
+    // Determine throttle
     let throttle = 0;
     if (input.forward) {
-      this.transmission.setForward();
       throttle = 1;
     } else if (input.backward) {
-      // If moving forward at decent speed, treat as brake first
-      const speed = this.getSpeed();
-      if (speed > 5) {
-        throttle = 0;
-      } else {
-        this.transmission.setReverse();
-        throttle = 0.6;
-      }
+      throttle = 0.6;
     }
 
     const brakeInput = input.brake ? 1 : 0;
@@ -185,7 +191,7 @@ export class VehicleController {
     // Update drivetrain
     const gearRatio = this.transmission.getCurrentGearRatio();
     const finalDrive = this.transmission.getFinalDriveRatio();
-    this.transmission.update(this.engine.getRpm(), throttle, dt);
+    this.transmission.update(dt);
 
     // Engine torque
     const engineTorque = this.engine.update(throttle, wheelRpm, gearRatio, finalDrive, dt);
@@ -209,8 +215,15 @@ export class VehicleController {
     this.vehicleController.setWheelSteering(0, this.currentSteering);
     this.vehicleController.setWheelSteering(1, this.currentSteering);
 
+    // Hill-hold: light brake when in gear, no throttle, and nearly stopped
+    const speed = this.getSpeed();
+    let holdBrake = 0;
+    if (gearRatio !== 0 && throttle < 0.01 && speed < 3) {
+      holdBrake = 15;
+    }
+
     // Rear-wheel drive
-    const brakeForce = brakeInput * this.config.brakes.maxForce;
+    const brakeForce = brakeInput * this.config.brakes.maxForce + holdBrake;
     for (let i = 0; i < 4; i++) {
       this.vehicleController.setWheelBrake(i, brakeForce);
 
@@ -224,15 +237,18 @@ export class VehicleController {
 
     // Step vehicle controller
     this.vehicleController.updateVehicle(dt);
-  }
 
-  updateVisuals(): void {
-    // Update chassis mesh from physics
+    // Save current physics state for interpolation
     const pos = this.chassisBody.translation();
     const rot = this.chassisBody.rotation();
+    this.currPosition.set(pos.x, pos.y, pos.z);
+    this.currQuaternion.set(rot.x, rot.y, rot.z, rot.w);
+  }
 
-    this.chassisMesh.position.set(pos.x, pos.y, pos.z);
-    this.chassisMesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+  updateVisuals(alpha: number): void {
+    // Interpolate chassis position/rotation between physics frames
+    this.chassisMesh.position.lerpVectors(this.prevPosition, this.currPosition, alpha);
+    this.chassisMesh.quaternion.slerpQuaternions(this.prevQuaternion, this.currQuaternion, alpha);
 
     // Update wheel meshes
     for (let i = 0; i < this.wheelMeshes.length; i++) {
@@ -300,14 +316,18 @@ export class VehicleController {
     return this.transmission.getGearDisplay();
   }
 
-  getPosition(): THREE.Vector3 {
-    const pos = this.chassisBody.translation();
-    return new THREE.Vector3(pos.x, pos.y, pos.z);
+  getPosition(alpha?: number): THREE.Vector3 {
+    if (alpha !== undefined) {
+      return new THREE.Vector3().lerpVectors(this.prevPosition, this.currPosition, alpha);
+    }
+    return this.currPosition.clone();
   }
 
-  getQuaternion(): THREE.Quaternion {
-    const rot = this.chassisBody.rotation();
-    return new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
+  getQuaternion(alpha?: number): THREE.Quaternion {
+    if (alpha !== undefined) {
+      return new THREE.Quaternion().slerpQuaternions(this.prevQuaternion, this.currQuaternion, alpha);
+    }
+    return this.currQuaternion.clone();
   }
 
   getForwardDirection(): THREE.Vector3 {
@@ -329,6 +349,13 @@ export class VehicleController {
     this.chassisBody.setLinvel(new this.world.rapier.Vector3(0, 0, 0), true);
     this.chassisBody.setAngvel(new this.world.rapier.Vector3(0, 0, 0), true);
     this.currentSteering = 0;
+
+    // Sync interpolation state to reset position
+    this.prevPosition.set(pos.x, pos.y, pos.z);
+    this.currPosition.set(pos.x, pos.y, pos.z);
+    this.prevQuaternion.set(0, 0, 0, 1);
+    this.currQuaternion.set(0, 0, 0, 1);
+    this.transmission.resetToNeutral();
     this.engine.setRunning(true);
     this.fuel.refuel();
   }

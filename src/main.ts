@@ -82,15 +82,17 @@ async function main(): Promise<void> {
   });
 
   // Render update
-  engine.onRender((dt, _alpha) => {
-    // Update vehicle visuals
-    vehicle.updateVisuals();
+  engine.onRender((dt, alpha) => {
+    // Update vehicle visuals (interpolated)
+    vehicle.updateVisuals(alpha);
 
-    // Update camera
+    // Update camera with interpolated position
+    const interpPos = vehicle.getPosition(alpha);
+    const interpQuat = vehicle.getQuaternion(alpha);
     cameraController.update(
       world.camera,
-      vehicle.getPosition(),
-      vehicle.getQuaternion(),
+      interpPos,
+      interpQuat,
       dt,
     );
 
@@ -99,9 +101,8 @@ async function main(): Promise<void> {
 
     // Update sun shadow to follow vehicle
     if (sunLight) {
-      const vPos = vehicle.getPosition();
-      sunLight.position.set(vPos.x + 50, 100, vPos.z + 30);
-      sunLight.target.position.set(vPos.x, 0, vPos.z);
+      sunLight.position.set(interpPos.x + 50, 100, interpPos.z + 30);
+      sunLight.target.position.set(interpPos.x, 0, interpPos.z);
       sunLight.target.updateMatrixWorld();
     }
 

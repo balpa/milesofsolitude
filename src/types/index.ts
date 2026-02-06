@@ -67,6 +67,8 @@ export interface InputState {
   left: boolean;
   right: boolean;
   brake: boolean;
+  shiftUp: boolean;
+  shiftDown: boolean;
   cameraToggle: boolean;
   reset: boolean;
 }

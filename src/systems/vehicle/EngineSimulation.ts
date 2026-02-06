@@ -23,34 +23,51 @@ export class EngineSimulation {
       return 0;
     }
 
+    const inGear = gearRatio !== 0;
+
     // Compute engine RPM from wheel RPM through drivetrain
     const drivetrainRpm = Math.abs(wheelRpm) * Math.abs(gearRatio) * finalDrive;
 
-    // Blend between idle and drivetrain RPM based on clutch engagement
-    const clutchEngagement = gearRatio !== 0 ? 1 : 0;
-    const targetRpm = clutchEngagement > 0
-      ? Math.max(this.config.idleRpm, drivetrainRpm)
-      : this.config.idleRpm + throttle * (this.config.maxRpm - this.config.idleRpm) * 0.3;
+    // Target RPM calculation with clutch slip model
+    let targetRpm: number;
+    if (inGear) {
+      // Clutch slip: allows engine to rev above drivetrain at low speeds,
+      // but clutch grips progressively as speed builds.
+      // slipCeiling = how high the engine can free-rev beyond drivetrain RPM
+      const slipCeiling = this.config.idleRpm
+        + throttle * (this.config.idleRpm * 2); // max ~2400 RPM from slip alone
+
+      // Clutch grip: 0 = full slip (standing), 1 = fully gripped (high speed)
+      const gripThreshold = 2000; // drivetrain RPM where clutch is mostly gripped
+      const clutchGrip = clamp(drivetrainRpm / gripThreshold, 0, 1);
+
+      // Blend: at low speed, engine can float above drivetrain by slipCeiling.
+      // At high speed, engine follows drivetrain directly.
+      const slipBoost = slipCeiling * (1 - clutchGrip);
+      targetRpm = Math.max(this.config.idleRpm, drivetrainRpm + slipBoost);
+    } else {
+      // In neutral: free rev
+      targetRpm = this.config.idleRpm
+        + throttle * (this.config.redlineRpm - this.config.idleRpm) * 0.85;
+    }
 
     // Smooth RPM transition
-    const rpmSpeed = throttle > 0 ? 8 : 12;
+    const rpmSpeed = throttle > 0.1 ? 8 : 15;
     this.rpm = lerp(this.rpm, targetRpm, dt * rpmSpeed);
     this.rpm = clamp(this.rpm, 0, this.config.maxRpm);
 
     // Rev limiter - cut torque above redline
     if (this.rpm >= this.config.redlineRpm) {
-      return this.lookupTorque(this.rpm) * 0.1;
+      return this.lookupTorque(this.rpm) * 0.05;
     }
 
-    // Engine output torque
-    const torque = this.lookupTorque(this.rpm) * throttle;
-
-    // Engine braking when no throttle
-    if (throttle < 0.01 && clutchEngagement > 0) {
+    // Engine braking when no throttle and in gear
+    if (throttle < 0.01 && inGear) {
       return -this.config.engineBrakingFactor * this.lookupTorque(this.rpm) * 0.3;
     }
 
-    return torque;
+    // Engine output torque
+    return this.lookupTorque(this.rpm) * throttle;
   }
 
   private lookupTorque(rpm: number): number {
