@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { RoadSpline } from './RoadSpline';
+import type { World } from '../../core/World';
 import { RoadsideProps } from './RoadsideProps';
 
 const SEGMENTS_PER_CHUNK = 40;
@@ -16,6 +17,7 @@ export class RoadChunk {
     spline: RoadSpline,
     tStart: number,
     tEnd: number,
+    world: World,
   ) {
     this.tStart = tStart;
     this.tEnd = tEnd;
@@ -33,8 +35,8 @@ export class RoadChunk {
     this.terrainMesh = this.createTerrainMesh(spline);
     this.mesh.add(this.terrainMesh);
 
-    // Generate roadside props
-    this.props = new RoadsideProps(spline, tStart, tEnd);
+    // Generate roadside props (with physics colliders)
+    this.props = new RoadsideProps(spline, tStart, tEnd, world);
     this.mesh.add(this.props.group);
   }
 

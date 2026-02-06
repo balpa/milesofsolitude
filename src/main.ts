@@ -5,6 +5,7 @@ import { World } from './core/World';
 import { VehicleController } from './systems/vehicle/VehicleController';
 import { CameraController } from './systems/camera/CameraController';
 import { HudManager } from './systems/hud/HudManager';
+import { SettingsManager } from './systems/hud/SettingsManager';
 import { RoadManager } from './systems/road/RoadManager';
 import type { VehicleConfig, RoadConfig } from './types';
 
@@ -39,6 +40,9 @@ async function main(): Promise<void> {
   // Create HUD
   const hud = new HudManager();
 
+  // Create settings manager (config menu + night mode)
+  const settings = new SettingsManager(world.scene, vehicle);
+
   // Create game engine (loop)
   const engine = new Engine();
 
@@ -50,18 +54,32 @@ async function main(): Promise<void> {
   // Road chunk update counter
   let chunkUpdateTimer = 0;
 
+  // Mouse deltas (accumulated per frame, consumed by render callback)
+  let frameMouseDX = 0;
+  let frameMouseDY = 0;
+
   // Fixed timestep update (physics)
   engine.onFixedUpdate((dt) => {
     const input = world.inputManager.getState();
+
+    // Accumulate mouse deltas across physics steps for the render callback
+    frameMouseDX += input.mouseDeltaX;
+    frameMouseDY += input.mouseDeltaY;
 
     // Reset vehicle
     if (input.reset) {
       vehicle.reset(roadManager.getStartPosition());
     }
 
-    // Camera toggle
+    // Camera toggles
     if (input.cameraToggle) {
       cameraController.toggle();
+    }
+    if (input.freeLookToggle) {
+      cameraController.toggleFreeLook();
+    }
+    if (input.highBeamToggle) {
+      vehicle.toggleHighBeams();
     }
 
     // Update vehicle
@@ -77,6 +95,10 @@ async function main(): Promise<void> {
     chunkUpdateTimer += dt;
     if (chunkUpdateTimer > 0.5) {
       roadManager.updateChunks(vehicle.getPosition());
+      // Re-apply night mode to newly loaded chunks (pole lights)
+      if (settings.isNightMode()) {
+        settings.refreshPoleLights();
+      }
       chunkUpdateTimer = 0;
     }
   });
@@ -86,7 +108,7 @@ async function main(): Promise<void> {
     // Update vehicle visuals (interpolated)
     vehicle.updateVisuals(alpha);
 
-    // Update camera with interpolated position
+    // Update camera with interpolated position and mouse input
     const interpPos = vehicle.getPosition(alpha);
     const interpQuat = vehicle.getQuaternion(alpha);
     cameraController.update(
@@ -94,7 +116,13 @@ async function main(): Promise<void> {
       interpPos,
       interpQuat,
       dt,
+      frameMouseDX,
+      frameMouseDY,
     );
+
+    // Reset mouse deltas after camera consumed them
+    frameMouseDX = 0;
+    frameMouseDY = 0;
 
     // Update HUD
     hud.update(vehicle.getState(), vehicle.getGearDisplay());

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import type RAPIER from '@dimforge/rapier3d-compat';
 import type { RoadSpline } from './RoadSpline';
+import type { World } from '../../core/World';
 
 const PROP_DENSITY = 0.005;
 const MIN_ROAD_OFFSET = 8;
@@ -10,10 +12,28 @@ const MOUNTAIN_OFFSET = 120;
 
 export class RoadsideProps {
   readonly group: THREE.Group;
+  private readonly colliders: RAPIER.Collider[] = [];
+  private readonly world: World | null;
 
-  constructor(spline: RoadSpline, tStart: number, tEnd: number) {
+  constructor(spline: RoadSpline, tStart: number, tEnd: number, world: World | null = null) {
+    this.world = world;
     this.group = new THREE.Group();
     this.generate(spline, tStart, tEnd);
+  }
+
+  private addPropCollider(
+    pos: THREE.Vector3, hx: number, hy: number, hz: number, yOffset: number, rotY = 0,
+  ): void {
+    if (!this.world) return;
+    const desc = this.world.rapier.ColliderDesc.cuboid(hx, hy, hz)
+      .setTranslation(pos.x, pos.y + yOffset, pos.z);
+    if (rotY !== 0) {
+      desc.setRotation(
+        new this.world.rapier.Quaternion(0, Math.sin(rotY / 2), 0, Math.cos(rotY / 2)),
+      );
+    }
+    const collider = this.world.physicsWorld.createCollider(desc);
+    this.colliders.push(collider);
   }
 
   private generate(spline: RoadSpline, tStart: number, tEnd: number): void {
@@ -56,6 +76,10 @@ export class RoadsideProps {
       prop.position.copy(position);
       prop.rotation.y = random() * Math.PI * 2;
       this.group.add(prop);
+
+      const cs = prop.userData.colliderSize as
+        { hx: number; hy: number; hz: number; yOffset: number } | undefined;
+      if (cs) this.addPropCollider(position, cs.hx, cs.hy, cs.hz, cs.yOffset);
     }
 
     // --- Buildings (gas stations, motels, diners, abandoned structures) ---
@@ -85,6 +109,10 @@ export class RoadsideProps {
       building.lookAt(frame.position);
       building.rotation.y += (random() - 0.5) * 0.3;
       this.group.add(building);
+
+      const bcs = building.userData.colliderSize as
+        { hx: number; hy: number; hz: number; yOffset: number } | undefined;
+      if (bcs) this.addPropCollider(position, bcs.hx, bcs.hy, bcs.hz, bcs.yOffset, building.rotation.y);
     }
 
     // --- Mountains/hills in the distance ---
@@ -120,10 +148,12 @@ export class RoadsideProps {
 
     // --- Telephone poles ---
     const poleInterval = 0.008;
+    let poleIndex = 0;
     for (let t = tStart; t < tEnd; t += poleInterval) {
       if (t < 0 || t > 1) continue;
       const frame = spline.getFrenetFrame(Math.min(t, 1));
-      const pole = this.createTelephonePole();
+      const addLight = poleIndex % 3 === 0;
+      const pole = this.createTelephonePole(addLight);
       const pos = frame.position.clone().add(
         frame.binormal.clone().multiplyScalar(-7),
       );
@@ -134,6 +164,8 @@ export class RoadsideProps {
       pole.rotation.x = 0;
       pole.rotation.z = 0;
       this.group.add(pole);
+      this.addPropCollider(pos, 0.15, 3.5, 0.15, 3.5);
+      poleIndex++;
     }
   }
 
@@ -172,6 +204,7 @@ export class RoadsideProps {
       arm2.castShadow = true;
       cactus.add(arm2);
     }
+    cactus.userData.colliderSize = { hx: 0.3, hy: height / 2, hz: 0.3, yOffset: height / 2 };
     return cactus;
   }
 
@@ -187,6 +220,7 @@ export class RoadsideProps {
     rock.position.y = scale * 0.25;
     rock.castShadow = true;
     rock.receiveShadow = true;
+    rock.userData.colliderSize = { hx: scale * 0.6, hy: scale * 0.35, hz: scale * 0.6, yOffset: scale * 0.25 };
     return rock;
   }
 
@@ -205,6 +239,7 @@ export class RoadsideProps {
       sphere.castShadow = true;
       bush.add(sphere);
     }
+    bush.userData.colliderSize = { hx: 0.6, hy: 0.4, hz: 0.6, yOffset: 0.3 };
     return bush;
   }
 
@@ -242,6 +277,7 @@ export class RoadsideProps {
       branch.castShadow = true;
       tree.add(branch);
     }
+    tree.userData.colliderSize = { hx: 0.25, hy: height / 2, hz: 0.25, yOffset: height / 2 };
     return tree;
   }
 
@@ -274,6 +310,7 @@ export class RoadsideProps {
       cluster.castShadow = true;
       tree.add(cluster);
     }
+    tree.userData.colliderSize = { hx: 0.3, hy: height / 2, hz: 0.3, yOffset: height / 2 };
     return tree;
   }
 
@@ -355,6 +392,7 @@ export class RoadsideProps {
       station.add(sign);
     }
 
+    station.userData.colliderSize = { hx: 3.5, hy: 2, hz: 3, yOffset: 2 };
     return station;
   }
 
@@ -424,6 +462,7 @@ export class RoadsideProps {
       motel.add(post);
     }
 
+    motel.userData.colliderSize = { hx: totalWidth / 2 + 0.5, hy: 1.5, hz: 3, yOffset: 1.5 };
     return motel;
   }
 
@@ -483,6 +522,7 @@ export class RoadsideProps {
       diner.add(sign);
     }
 
+    diner.userData.colliderSize = { hx: 4.5, hy: 2, hz: 3, yOffset: 2 };
     return diner;
   }
 
@@ -521,6 +561,7 @@ export class RoadsideProps {
       house.add(board);
     }
 
+    house.userData.colliderSize = { hx: width / 2 + 0.5, hy: height / 2, hz: 2.5, yOffset: height / 2 };
     return house;
   }
 
@@ -605,7 +646,7 @@ export class RoadsideProps {
     return marker;
   }
 
-  private createTelephonePole(): THREE.Group {
+  private createTelephonePole(addLight = false): THREE.Group {
     const pole = new THREE.Group();
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b5b3a, roughness: 1.0 });
 
@@ -628,10 +669,37 @@ export class RoadsideProps {
       pole.add(ins);
     }
 
+    // Light bulb on pole (emissive sphere, off by default)
+    const bulbGeo = new THREE.SphereGeometry(0.1, 6, 6);
+    const bulbMat = new THREE.MeshStandardMaterial({
+      color: 0x332200,
+      emissive: 0xffcc66,
+      emissiveIntensity: 0,
+    });
+    const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+    bulb.position.set(0, 6.5, 0.3);
+    bulb.userData.poleLight = true;
+    pole.add(bulb);
+
+    // Actual PointLight on every 3rd pole (off by default)
+    if (addLight) {
+      const pointLight = new THREE.PointLight(0xffcc66, 0, 18, 2);
+      pointLight.position.set(0, 6.5, 0.3);
+      pointLight.userData.poleLight = true;
+      pole.add(pointLight);
+    }
+
+    pole.userData.colliderSize = { hx: 0.15, hy: 3.5, hz: 0.15, yOffset: 3.5 };
     return pole;
   }
 
   dispose(): void {
+    if (this.world) {
+      for (const collider of this.colliders) {
+        this.world.physicsWorld.removeCollider(collider, false);
+      }
+    }
+    this.colliders.length = 0;
     this.group.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.geometry.dispose();

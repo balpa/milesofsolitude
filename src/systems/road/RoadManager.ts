@@ -100,7 +100,7 @@ export class RoadManager {
       if (!this.chunks.has(index)) {
         const tStart = index / CHUNK_COUNT;
         const tEnd = (index + 1) / CHUNK_COUNT;
-        const chunk = new RoadChunk(this.spline, tStart, tEnd);
+        const chunk = new RoadChunk(this.spline, tStart, tEnd, this.world);
         this.chunks.set(index, chunk);
         this.world.scene.add(chunk.mesh);
       }

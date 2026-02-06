@@ -70,7 +70,11 @@ export interface InputState {
   shiftUp: boolean;
   shiftDown: boolean;
   cameraToggle: boolean;
+  freeLookToggle: boolean;
+  highBeamToggle: boolean;
   reset: boolean;
+  mouseDeltaX: number;
+  mouseDeltaY: number;
 }
 
 export interface RoadWaypoint {

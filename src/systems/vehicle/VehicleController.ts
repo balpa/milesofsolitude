@@ -22,6 +22,22 @@ export class VehicleController {
   private readonly wheelMeshes: THREE.Mesh[] = [];
 
   private currentSteering = 0;
+  private braking = false;
+  private inReverse = false;
+  private headlightsOn = false;
+  private highBeamsOn = false;
+
+  // Light materials (toggled in updateVisuals)
+  private brakeLightMat!: THREE.MeshStandardMaterial;
+  private reverseLightMat!: THREE.MeshStandardMaterial;
+  private headlightMat!: THREE.MeshStandardMaterial;
+
+  // Headlight SpotLights
+  private readonly headlightSpots: THREE.SpotLight[] = [];
+  // Brake light SpotLights (red, pointing backward)
+  private readonly brakeSpots: THREE.SpotLight[] = [];
+  // License plate light
+  private plateLightSpot!: THREE.SpotLight;
 
   // Interpolation state for smooth rendering
   private prevPosition = new THREE.Vector3();
@@ -121,16 +137,80 @@ export class VehicleController {
 
     // Headlights
     const headlightGeo = new THREE.SphereGeometry(0.08, 8, 8);
-    const headlightMat = new THREE.MeshStandardMaterial({
+    this.headlightMat = new THREE.MeshStandardMaterial({
       color: 0xffffcc,
       emissive: 0xffffcc,
       emissiveIntensity: 0.5,
     });
     for (const side of [-1, 1]) {
-      const headlight = new THREE.Mesh(headlightGeo, headlightMat);
+      const headlight = new THREE.Mesh(headlightGeo, this.headlightMat);
       headlight.position.set(side * chassis.width * 0.35, 0, chassis.length / 2);
       this.chassisMesh.add(headlight);
+
+      // SpotLight for actual illumination (off by default, night mode enables)
+      const spot = new THREE.SpotLight(0xfff4cc, 0, 60, Math.PI / 5, 0.4, 1.5);
+      spot.position.set(side * chassis.width * 0.35, 0, chassis.length / 2);
+      spot.castShadow = true;
+      spot.shadow.mapSize.set(512, 512);
+      // Target placed far ahead
+      const target = new THREE.Object3D();
+      target.position.set(side * 0.5, -1, 30);
+      this.chassisMesh.add(target);
+      spot.target = target;
+      this.chassisMesh.add(spot);
+      this.headlightSpots.push(spot);
     }
+
+    // Brake lights (red, outer rear)
+    const brakeLightGeo = new THREE.BoxGeometry(0.12, 0.08, 0.04);
+    this.brakeLightMat = new THREE.MeshStandardMaterial({
+      color: 0x330000,
+      emissive: 0xff0000,
+      emissiveIntensity: 0,
+    });
+    for (const side of [-1, 1]) {
+      const brakeLight = new THREE.Mesh(brakeLightGeo, this.brakeLightMat);
+      brakeLight.position.set(side * chassis.width * 0.35, 0, -chassis.length / 2);
+      this.chassisMesh.add(brakeLight);
+
+      // SpotLight for brake glow (pointing backward, close range)
+      const brakeSpot = new THREE.SpotLight(0xff2200, 0, 8, Math.PI / 4, 0.6, 2);
+      brakeSpot.position.set(side * chassis.width * 0.35, 0, -chassis.length / 2);
+      const brakeTarget = new THREE.Object3D();
+      brakeTarget.position.set(side * 0.3, -0.5, -5);
+      this.chassisMesh.add(brakeTarget);
+      brakeSpot.target = brakeTarget;
+      this.chassisMesh.add(brakeSpot);
+      this.brakeSpots.push(brakeSpot);
+    }
+
+    // Reverse lights (white, inner rear)
+    const reverseLightGeo = new THREE.BoxGeometry(0.08, 0.06, 0.04);
+    this.reverseLightMat = new THREE.MeshStandardMaterial({
+      color: 0x222222,
+      emissive: 0xffffff,
+      emissiveIntensity: 0,
+    });
+    for (const side of [-1, 1]) {
+      const reverseLight = new THREE.Mesh(reverseLightGeo, this.reverseLightMat);
+      reverseLight.position.set(side * chassis.width * 0.2, 0, -chassis.length / 2);
+      this.chassisMesh.add(reverseLight);
+    }
+
+    // License plate
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.2 });
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.02), plateMat);
+    plate.position.set(0, -chassis.height * 0.3, -chassis.length / 2);
+    this.chassisMesh.add(plate);
+
+    // Plate light (small SpotLight pointing down from above the plate)
+    this.plateLightSpot = new THREE.SpotLight(0x999999, 0, 1.5, Math.PI / 2, 0.8, 2);
+    this.plateLightSpot.position.set(0, -chassis.height * 0.15, -chassis.length / 2 - 0.02);
+    const plateTarget = new THREE.Object3D();
+    plateTarget.position.set(0, -chassis.height - 1, -chassis.length / 2 - 0.3);
+    this.chassisMesh.add(plateTarget);
+    this.plateLightSpot.target = plateTarget;
+    this.chassisMesh.add(this.plateLightSpot);  
 
     // Wheels
     for (let i = 0; i < wheels.positions.length; i++) {
@@ -173,6 +253,8 @@ export class VehicleController {
     }
 
     const brakeInput = input.brake ? 1 : 0;
+    this.braking = input.brake;
+    this.inReverse = this.transmission.getGear() === -1;
 
     // Steering
     const steerTarget = (input.left ? 1 : 0) - (input.right ? 1 : 0);
@@ -250,6 +332,25 @@ export class VehicleController {
     this.chassisMesh.position.lerpVectors(this.prevPosition, this.currPosition, alpha);
     this.chassisMesh.quaternion.slerpQuaternions(this.prevQuaternion, this.currQuaternion, alpha);
 
+    // Brake lights: dim glow with headlights, bright when braking
+    if (this.braking) {
+      this.brakeLightMat.emissiveIntensity = 2.0;
+      this.brakeLightMat.color.setHex(0xff0000);
+      for (const s of this.brakeSpots) s.intensity = 5;
+    } else if (this.headlightsOn) {
+      this.brakeLightMat.emissiveIntensity = 0.4;
+      this.brakeLightMat.color.setHex(0x660000);
+      for (const s of this.brakeSpots) s.intensity = 1;
+    } else {
+      this.brakeLightMat.emissiveIntensity = 0;
+      this.brakeLightMat.color.setHex(0x330000);
+      for (const s of this.brakeSpots) s.intensity = 0;
+    }
+
+    // Reverse lights: bright white when in reverse
+    this.reverseLightMat.emissiveIntensity = this.inReverse ? 1.5 : 0;
+    this.reverseLightMat.color.setHex(this.inReverse ? 0xffffff : 0x222222);
+
     // Update wheel meshes
     for (let i = 0; i < this.wheelMeshes.length; i++) {
       const wheelAxle = this.vehicleController.wheelAxleCs(i);
@@ -314,6 +415,27 @@ export class VehicleController {
 
   getGearDisplay(): string {
     return this.transmission.getGearDisplay();
+  }
+
+  setHeadlights(on: boolean): void {
+    this.headlightsOn = on;
+    if (!on) this.highBeamsOn = false;
+    const intensity = on ? 30 : 0;
+    for (const spot of this.headlightSpots) {
+      spot.intensity = intensity;
+    }
+    this.headlightMat.emissiveIntensity = on ? 2.0 : 0.5;
+    this.plateLightSpot.intensity = on ? 0.4 : 0;
+  }
+
+  toggleHighBeams(): void {
+    if (!this.headlightsOn) return;
+    this.highBeamsOn = !this.highBeamsOn;
+    const intensity = this.highBeamsOn ? 90 : 30;
+    for (const spot of this.headlightSpots) {
+      spot.intensity = intensity;
+    }
+    this.headlightMat.emissiveIntensity = this.highBeamsOn ? 4.0 : 2.0;
   }
 
   getPosition(alpha?: number): THREE.Vector3 {

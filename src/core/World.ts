@@ -18,7 +18,7 @@ export class World {
   ) {
     this.rapier = rapier;
     this.eventBus = new EventBus();
-    this.inputManager = new InputManager();
+    this.inputManager = new InputManager(canvas);
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
